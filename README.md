@@ -1,6 +1,6 @@
 ## FScript
 
-<p align="center"><img src="https://github.com/wholder/ADU218/blob/master/images/FScript%20Screenshot.png"></p>
+<p align="center"><img src="https://github.com/wholder/FScript/blob/master/images/FScript%20Screenshot.png"></p>
 
 FScript provides a simple GUI interface for editing and running FScript code using a Java-based intepreter.  This code is derived from the original FScript by Joachim Van der Auwera.  For documentation on the language, see [http://fscript.sourceforge.net/fscript/index.html](http://fscript.sourceforge.net/fscript/index.html) but here is a quick rundown of FScript's features:
 
