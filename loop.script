@@ -1,0 +1,8 @@
+int ii = 0
+println("loop 5 times")
+while (ii < 5)
+    print("ii == ")
+    println(ii)
+    ii = add(ii, 1)
+endwhile
+exit("done")

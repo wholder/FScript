@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" build-on-make="true" name="FScript:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/FScript_jar</output-path>
+    <root id="archive" name="FScript.jar">
+      <element id="module-output" name="FScript" />
+    </root>
+  </artifact>
+</component>
