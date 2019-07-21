@@ -25,7 +25,8 @@ public class FScriptRunner extends JFrame {
   private CodeEditPane          code;
 
   /**
-   * BasicIO implements the external functiona available to the FScript Interpreter
+   * BasicIO implements the external functions available to the FScript Interpreter
+   * The FSCript test program FSTest.java shows how to implement additional external functions
    */
   class BasicIO extends FScript {
 
