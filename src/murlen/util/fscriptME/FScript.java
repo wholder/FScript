@@ -29,7 +29,7 @@ import java.util.List;
  * 20:07:2012
  * @version 0.51
  * @author wholder
- * @author Wayne Holder - Converted format to standard Java and changed Vector and Hashtable to List and Map
+ * @author Wayne Holder - Converted format to standard Java and refactored code to modernize it
  */
 public class FScript {
   private Parser parser;

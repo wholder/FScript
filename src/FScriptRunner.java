@@ -43,9 +43,6 @@ public class FScriptRunner extends JFrame {
         }
         case "add":
           return (Integer) param.get(0) + (Integer) param.get(1);
-        case "exit":
-          exit(param.get(0));
-          break;
         default:
           super.callFunction(name, param);
           break;

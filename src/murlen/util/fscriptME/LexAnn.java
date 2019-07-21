@@ -42,64 +42,70 @@ package murlen.util.fscriptME;
  * 20:07:2012
  * @version 0.51
  * @author wholder
- * @author Wayne Holder - Converted format to standard Java and changed Vector and Hashtable to List and Map
+ * @author Wayne Holder - Converted format to standard Java and refactored code to modernize it
  */
 
 class LexAnn {
   // Defines what is allowed in words (e.g keywords variables etc.)
-  private static final String ALLOW_WORD_START = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-  private static final String ALLOW_WORD = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890._";
-  // general
-  static final int TT_WORD = 9000;
-  static final int TT_INTEGER = 9100;
-  static final int TT_DOUBLE = 9150;
-  static final int TT_EOF = 9200; // never set by this class
-  static final int TT_EOL = 9300;
-  static final int TT_STRING = 9500;
-  static final int TT_FUNC = 9600;
-  static final int TT_ARRAY = 9650;
-  // keywords
-  static final int TT_IF = 9700;
-  static final int TT_EIF = 9800;
-  static final int TT_ELSE = 9850;
-  static final int TT_ELSIF = 9855;
-  static final int TT_THEN = 9875;
-  static final int TT_DEFFUNC = 9900;
-  static final int TT_EDEFFUNC = 10000;
-  static final int TT_WHILE = 10100;
-  static final int TT_EWHILE = 10200;
-  static final int TT_DEFINT = 10300;
-  static final int TT_DEFSTRING = 10400;
-  static final int TT_DEFDOUBLE = 10425;
-  static final int TT_RETURN = 10450;
-  static final int TT_EXIT = 10455;
-  // math opts
-  static final int TT_PLUS = 10500;
-  static final int TT_MINUS = 10600;
-  static final int TT_MULT = 10700;
-  static final int TT_DIV = 10800;
-  static final int TT_MOD = 10850;
-  // logic
-  static final int TT_LAND = 10900;
-  static final int TT_LOR = 11000;
-  static final int TT_LEQ = 11100;
-  static final int TT_LNEQ = 11200;
-  static final int TT_LGR = 11300;
-  static final int TT_LLS = 11500;
-  static final int TT_LGRE = 11600;
-  static final int TT_LLSE = 11700;
-  static final int TT_NOT = 11800;
-  // other
-  static final int TT_EQ = 11900;
+  private static final String ALLOW_WORD_START  = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+  private static final String ALLOW_WORD        = ALLOW_WORD_START + "1234567890._";
+  public enum Token {
+    // Types
+    TT_WORD,
+    TT_INTEGER,
+    TT_DOUBLE,
+    TT_STRING,
+    // Functions and arrays
+    TT_FUNC,
+    TT_ARRAY,
+    // Keywords
+    TT_IF,
+    TT_EIF,
+    TT_ELSE,
+    TT_ELSIF,
+    TT_THEN,
+    TT_DEFFUNC,
+    TT_EDEFFUNC,
+    TT_WHILE,
+    TT_EWHILE,
+    TT_DEFINT,
+    TT_DEFSTRING,
+    TT_DEFDOUBLE,
+    TT_RETURN,
+    TT_EXIT,
+    // Math operators
+    TT_PLUS,
+    TT_MINUS,
+    TT_MULT,
+    TT_DIV,
+    TT_MOD,
+    // Logic operators
+    TT_LAND,
+    TT_LOR,
+    TT_LEQ,
+    TT_LNEQ,
+    TT_LGR,
+    TT_LLS,
+    TT_LGRE,
+    TT_LLSE,
+    TT_NOT,
+    // Other tokens
+    TT_EQ,
+    TT_COMMA,
+    TT_LPAREN,
+    TT_RPAREN,
+    TT_LBRACE,
+    TT_RBRACE,
+    TT_EOF,         // never set by this class
+    TT_EOL,
+  }
 
-  private static int EOL = -1;
-
-  int             ttype;            // contains the current token type
+  Token           ttype;            // contains the current token type
   Object          value;            // contains the current  value
   private boolean pBack;
   private char[]  cBuf;
   private char[]  line;
-  private int     c;
+  private int     cc;
   private int     pos;
 
   /**
@@ -125,7 +131,7 @@ class LexAnn {
   void setString (String str) {
     line = str.toCharArray();
     pos = 0;
-    c = 0;
+    cc = 0;
   }
 
   /**
@@ -135,7 +141,7 @@ class LexAnn {
     if (pos < line.length) {
       return line[pos++];
     } else {
-      return EOL;
+      return -1;
     }
   }
 
@@ -145,7 +151,7 @@ class LexAnn {
    */
   private int peekChar () {
     if (pos >= line.length) {
-      return EOL;
+      return -1;
     } else {
       return line[pos];
     }
@@ -153,7 +159,6 @@ class LexAnn {
 
   /**
    * Read the next token
-   *
    */
   void nextToken () {
     if (!pBack) {
@@ -173,25 +178,25 @@ class LexAnn {
   // Internal next token function
   private void nextT () {
     int cPos = 0;
-    if (c == 0)
-      c = getChar();
+    if (cc == 0)
+      cc = getChar();
     value = null;
-    while (c == ' ' || c == '\t' || c == '\n' || c == '\r')
-      c = getChar();
-    if (c == EOL) {
-      ttype = TT_EOL;
-    } else if (c == '#') {
-      // Comments
-      while (c != EOL) c = getChar();
-      // get the next item, will be an eol marker
+    while (cc == ' ' || cc == '\t' || cc == '\n' || cc == '\r') {
+      cc = getChar();
+    }
+    if (cc < 0) {
+      ttype = Token.TT_EOL;
+    } else if (cc == '#') {
+      // Advance to next line
+      do {
+        cc = getChar();
+      } while (cc >= 0);
       nextT();
-      // then the 'real' next token
-      nextT();
-    } else if (c == '"') {
+    } else if (cc == '"') {
       // Quoted Strings
-      c = getChar();
-      while ((c != EOL) && (c != '"')) {
-        if (c == '\\') {
+      cc = getChar();
+      while ((cc >= 0) && (cc != '"')) {
+        if (cc == '\\') {
           switch (peekChar()) {
             case 'n': {
               cBuf[cPos++] = '\n';
@@ -220,112 +225,124 @@ class LexAnn {
             }
           }
         } else {
-          cBuf[cPos++] = (char) c;
+          cBuf[cPos++] = (char) cc;
         }
-        c = getChar();
+        cc = getChar();
       }
       value = new String(cBuf, 0, cPos);
-      c = getChar();
-      ttype = TT_STRING;
-    } else if (ALLOW_WORD_START.indexOf(c) >= 0) {
+      cc = getChar();
+      ttype = Token.TT_STRING;
+    } else if (ALLOW_WORD_START.indexOf(cc) >= 0) {
       // Words
-      while (ALLOW_WORD.indexOf(c) >= 0) {
-        cBuf[cPos++] = (char) c;
-        c = getChar();
+      while (ALLOW_WORD.indexOf(cc) >= 0) {
+        cBuf[cPos++] = (char) cc;
+        cc = getChar();
+      }
+      // Skip trailing whitespace, if any
+      while (cc == ' ' || cc == '\t') {
+        cc = getChar();
       }
       value = new String(cBuf, 0, cPos);
       if (value.equals("if")) {
-        ttype = TT_IF;
+        ttype = Token.TT_IF;
       } else if (value.equals("then")) {
-        ttype = TT_THEN;
+        ttype = Token.TT_THEN;
       } else if (value.equals("endif")) {
-        ttype = TT_EIF;
+        ttype = Token.TT_EIF;
       } else if (value.equals("else")) {
-        ttype = TT_ELSE;
+        ttype = Token.TT_ELSE;
       } else if (value.equals("elseif")) {
-        ttype = TT_ELSIF;
+        ttype = Token.TT_ELSIF;
       } else if (value.equals("while")) {
-        ttype = TT_WHILE;
+        ttype = Token.TT_WHILE;
       } else if (value.equals("endwhile")) {
-        ttype = TT_EWHILE;
+        ttype = Token.TT_EWHILE;
       } else if (value.equals("func")) {
-        ttype = TT_DEFFUNC;
+        ttype = Token.TT_DEFFUNC;
       } else if (value.equals("endfunc")) {
-        ttype = TT_EDEFFUNC;
+        ttype = Token.TT_EDEFFUNC;
       } else if (value.equals("return")) {
-        ttype = TT_RETURN;
+        ttype = Token.TT_RETURN;
       } else if (value.equals("exit")) {
-        ttype = TT_EXIT;
+        ttype = Token.TT_EXIT;
       } else if (value.equals("int")) {
-        ttype = TT_DEFINT;
+        ttype = Token.TT_DEFINT;
       } else if (value.equals("string")) {
-        ttype = TT_DEFSTRING;
-      } else if (c == '(') {
-        ttype = TT_FUNC;
-      } else if (c == '[') {
-        ttype = TT_ARRAY;
+        ttype = Token.TT_DEFSTRING;
+      } else if (cc == '(') {
+        ttype = Token.TT_FUNC;
+      } else if (cc == '[') {
+        ttype = Token.TT_ARRAY;
       } else {
-        ttype = TT_WORD;
+        ttype = Token.TT_WORD;
       }
-    } else if (c >= '0' && c <= '9') {
+    } else if (cc >= '0' && cc <= '9') {
       // Numbers
-      while (c >= '0' && c <= '9') {
-        cBuf[cPos++] = (char) c;
-        c = getChar();
+      while (cc >= '0' && cc <= '9') {
+        cBuf[cPos++] = (char) cc;
+        cc = getChar();
       }
       String str = new String(cBuf, 0, cPos);
-      ttype = TT_INTEGER;
+      ttype = Token.TT_INTEGER;
       value = Integer.parseInt(str);
     } else {
       // others
-      if (c == '+') {
-        ttype = TT_PLUS;
-      } else if (c == '-') {
-        ttype = TT_MINUS;
-      } else if (c == '*') {
-        ttype = TT_MULT;
-      } else if (c == '/') {
-        ttype = TT_DIV;
-      } else if (c == '%') {
-        ttype = TT_MOD;
-      } else if (c == '>') {
+      if (cc == '+') {
+        ttype = Token.TT_PLUS;
+      } else if (cc == '-') {
+        ttype = Token.TT_MINUS;
+      } else if (cc == '*') {
+        ttype = Token.TT_MULT;
+      } else if (cc == '/') {
+        ttype = Token.TT_DIV;
+      } else if (cc == '%') {
+        ttype = Token.TT_MOD;
+      } else if (cc == '>') {
         if (peekChar() == '=') {
           getChar();
-          ttype = TT_LGRE;
+          ttype = Token.TT_LGRE;
         } else {
-          ttype = TT_LGR;
+          ttype = Token.TT_LGR;
         }
-      } else if (c == '<') {
+      } else if (cc == '<') {
         if (peekChar() == '=') {
           getChar();
-          ttype = TT_LLSE;
+          ttype = Token.TT_LLSE;
         } else {
-          ttype = TT_LLS;
+          ttype = Token.TT_LLS;
         }
-      } else if (c == '=') {
+      } else if (cc == '=') {
         if (peekChar() == '=') {
           getChar();
-          ttype = TT_LEQ;
+          ttype = Token.TT_LEQ;
         } else {
-          ttype = TT_EQ;
+          ttype = Token.TT_EQ;
         }
-      } else if (c == '!') {
+      } else if (cc == '!') {
         if (peekChar() == '=') {
           getChar();
-          ttype = TT_LNEQ;
+          ttype = Token.TT_LNEQ;
         } else {
-          ttype = TT_NOT;
+          ttype = Token.TT_NOT;
         }
-      } else if ((c == '|') && (peekChar() == '|')) {
+      } else if ((cc == '|') && (peekChar() == '|')) {
         getChar();
-        ttype = TT_LOR;
-      } else if ((c == '&') && (peekChar() == '&')) {
+        ttype = Token.TT_LOR;
+      } else if ((cc == '&') && (peekChar() == '&')) {
         getChar();
-        ttype = TT_LAND;
-      } else {
-        ttype = c;
+        ttype = Token.TT_LAND;
+      } else if (cc == ',') {
+        ttype = Token.TT_COMMA;
+      } else if (cc == '(') {
+        ttype = Token.TT_LPAREN;
+      } else if (cc == ')') {
+        ttype = Token.TT_RPAREN;
+      } else if (cc == '[') {
+        ttype = Token.TT_LBRACE;
+      } else if (cc == ']') {
+        ttype = Token.TT_RBRACE;
       }
-      c = getChar();
+      cc = getChar();
     }
   }
 }

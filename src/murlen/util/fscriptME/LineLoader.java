@@ -33,7 +33,7 @@ import java.util.List;
  * 20:07:2012
  * @version 0.51
  * @author wholder
- * @author Wayne Holder - Converted format to standard Java and changed Vector and Hashtable to List and Map
+ * @author Wayne Holder - Converted format to standard Java and refactored code to modernize it
  */
 
 final class LineLoader {
@@ -41,14 +41,7 @@ final class LineLoader {
   private int           curLine;
 
   /**
-   * Constructor
-   */
-  LineLoader () {
-    curLine = 0;
-  }
-
-  /**
-   * resets the LineLoader
+   * Reset the LineLoader
    */
   final void reset () {
     lines.clear();
@@ -56,7 +49,7 @@ final class LineLoader {
   }
 
   /**
-   * method to incrementally add lines to buffer
+   * Method to incrementally add lines to buffer
    *
    * @param s the line to load
    */
@@ -64,28 +57,26 @@ final class LineLoader {
     if (!s.trim().equals("")) {
       lines.add(s);
     } else {
-      //need to add blank lines to keep error msg lines
-      //in sync with file lines.
+      // Add blank lines to keep error msg lines in sync with file lines.
       lines.add("");
     }
   }
 
   /**
-   * add \n separated lines
+   * Add \n separated lines
    *
-   * @param s the lines to add
+   * @param str the lines to add
    */
-  final void addLines (String s) {
-    int pos;
-    if (!s.trim().equals("")) {
-      pos = s.indexOf('\n');
+  final void addLines (String str) {
+    if (!str.trim().equals("")) {
+      int pos = str.indexOf('\n');
       while (pos >= 0) {
-        addLine(s.substring(0, pos));
-        s = s.substring(pos + 1);
-        pos = s.indexOf('\n');
+        addLine(str.substring(0, pos));
+        str = str.substring(pos + 1);
+        pos = str.indexOf('\n');
       }
-      if (!s.trim().equals("")) {
-        addLine(s);
+      if (!str.trim().equals("")) {
+        addLine(str);
       }
     }
   }
@@ -128,10 +119,10 @@ final class LineLoader {
   /**
    * Returns the text of the requested line
    */
-  final String getLine (int n) {
-    if (n < 0 || n >= lines.size()) {
+  final String getLine (int lineNum) {
+    if (lineNum < 0 || lineNum >= lines.size()) {
       return "";
     }
-    return lines.get(n);
+    return lines.get(lineNum);
   }
 }

@@ -1,10 +1,14 @@
 package murlen.util.fscriptME;
 
+import static murlen.util.fscriptME.LexAnn.*;
+import static murlen.util.fscriptME.LexAnn.Token.*;
+
 import java.lang.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 
 /**
  * <b>Parser - Does the parsing - i.e it's the brains of the code.</b>
@@ -50,10 +54,10 @@ import java.util.Map;
  * 20:07:2012
  * @version 0.51
  * @author wholder
- * @author Wayne Holder - Converted format to standard Java and changed Vector and Hashtable to List and Map
+ * @author Wayne Holder - Converted format to standard Java and refactored code to modernize it
  */
 class Parser {
-  private static Map<Integer, Integer> opPrio = new HashMap<>();    // operator priority table
+  private static Map<Token, Integer> opPrio = new HashMap<>();    // operator priority table
   private Map<String, Object> vars = new HashMap<>();               // function local variables
   private Map<String, Object> funcs = new HashMap<>();              // function map
   private Map<String, Object> gVars;                                // global variables
@@ -65,20 +69,20 @@ class Parser {
   private String[]            error;
 
   static {
-    // builds the operator priority table from low to high
-    opPrio.put(LexAnn.TT_LOR, 1);
-    opPrio.put(LexAnn.TT_LAND, 2);
-    opPrio.put(LexAnn.TT_LEQ, 5);
-    opPrio.put(LexAnn.TT_LNEQ, 5);
-    opPrio.put(LexAnn.TT_LGR, 5);
-    opPrio.put(LexAnn.TT_LGRE, 5);
-    opPrio.put(LexAnn.TT_LLS, 5);
-    opPrio.put(LexAnn.TT_LLSE, 5);
-    opPrio.put(LexAnn.TT_PLUS, 10);
-    opPrio.put(LexAnn.TT_MINUS, 10);
-    opPrio.put(LexAnn.TT_MULT, 20);
-    opPrio.put(LexAnn.TT_DIV, 20);
-    opPrio.put(LexAnn.TT_MOD, 20);
+    // Setup operator priority table from low to high
+    opPrio.put(TT_LOR,   1);
+    opPrio.put(TT_LAND,  2);
+    opPrio.put(TT_LEQ,   5);
+    opPrio.put(TT_LNEQ,  5);
+    opPrio.put(TT_LGR,   5);
+    opPrio.put(TT_LGRE,  5);
+    opPrio.put(TT_LLS,   5);
+    opPrio.put(TT_LLSE,  5);
+    opPrio.put(TT_PLUS,  10);
+    opPrio.put(TT_MINUS, 10);
+    opPrio.put(TT_MULT,  20);
+    opPrio.put(TT_DIV,   20);
+    opPrio.put(TT_MOD,   20);
   }
 
   // Simple data class used internally to store function defs
@@ -133,18 +137,17 @@ class Parser {
    *
    * @param from - the start line number
    * @param to   - the end line number
-   *             returns an Object (currently a Integer or String) depending
-   *             on the return value of the code parsed, or null if none.
+   * @return       returns an Object (currently a Integer or String) depending on the return value of the code parsed, or null if none.
    */
   Object parse (int from, int to) throws FSException {
-    // nothing to do when starting beond the code end
+    // Nothing to do when starting beyond the code end
     if (code.lineCount() <= from) return null;
     maxLine = to;
     code.setCurLine(from);
     tok = new LexAnn(code.getLine());
     checkLine(code.getLine());
     getNextToken();
-    while (tok.ttype != LexAnn.TT_EOF) {
+    while (tok.ttype != TT_EOF) {
       // a script must always start with a word...
       try {
         parseStmt();
@@ -174,36 +177,36 @@ class Parser {
   // statement - top level thing
   private void parseStmt () throws FSException {
     switch (tok.ttype) {
-      case LexAnn.TT_IF:
-      case LexAnn.TT_EIF:
-      case LexAnn.TT_WHILE:
-      case LexAnn.TT_EWHILE:
-      case LexAnn.TT_DEFINT:
-      case LexAnn.TT_DEFSTRING:
-      case LexAnn.TT_DEFFUNC:
-      case LexAnn.TT_EXIT:
-      case LexAnn.TT_EDEFFUNC:
-      case LexAnn.TT_RETURN: {
+      case TT_IF:
+      case TT_EIF:
+      case TT_WHILE:
+      case TT_EWHILE:
+      case TT_DEFINT:
+      case TT_DEFSTRING:
+      case TT_DEFFUNC:
+      case TT_EXIT:
+      case TT_EDEFFUNC:
+      case TT_RETURN: {
         parseKeyWord();
         break;
       }
-      case LexAnn.TT_FUNC: {
+      case TT_FUNC: {
         parseFunc();
         break;
       }
-      case LexAnn.TT_ARRAY: {
+      case TT_ARRAY: {
         parseArrayAssign();
         break;
       }
-      case LexAnn.TT_WORD: {
+      case TT_WORD: {
         parseAssign();
         break;
       }
-      case LexAnn.TT_EOL: {
+      case TT_EOL: {
         tok.nextToken();
         break;
       }
-      case LexAnn.TT_EOF: {
+      case TT_EOF: {
         // all done
         break;
       }
@@ -213,31 +216,34 @@ class Parser {
     }
   }
 
-
   private void parseFunc () throws FSException {
-    String name;
-    name = (String) tok.value;
+    String name = (String) tok.value;
     // should be a '('
     getNextToken();
+    if (tok.ttype != TT_LPAREN) {
+      parseError("Expected '('");
+    }
     parseCallFunc(name);
     getNextToken();
   }
 
   private void parseArrayAssign () throws FSException {
-    String name;
-    Object index;
-    Object val;
-    name = (String) tok.value;
-    getNextToken(); // should be a '['
-    getNextToken(); // should be the index
-    index = parseExpr();
-    getNextToken(); // should be a ']'
-    // getNextToken();
-    if (tok.ttype != LexAnn.TT_EQ) {
+    String name = (String) tok.value;
+    getNextToken();                       // should be a '['
+    if (tok.ttype != TT_LBRACE) {
+      parseError("Expected '['");
+    }
+    getNextToken();                       // should be the index
+    Object index = parseExpr();
+    getNextToken();                       // should be a ']'
+    if (tok.ttype != TT_RBRACE) {
+      parseError("Expected ']'");
+    }
+    if (tok.ttype != TT_EQ) {
       parseError("Expected '='");
     } else {
       getNextToken();
-      val = parseExpr();
+      Object val = parseExpr();
       try {
         host.setVar(name, index, val);
       } catch (Exception e) {
@@ -246,32 +252,31 @@ class Parser {
     }
   }
 
-
   private void parseKeyWord () throws FSException {
     switch (tok.ttype) {
-      case LexAnn.TT_DEFINT:
-      case LexAnn.TT_DEFSTRING:
-      case LexAnn.TT_DEFDOUBLE: {
+      case TT_DEFINT:
+      case TT_DEFSTRING:
+      case TT_DEFDOUBLE: {
         parseVarDef();
         break;
       }
-      case LexAnn.TT_IF: {
+      case TT_IF: {
         parseIf();
         break;
       }
-      case LexAnn.TT_WHILE: {
+      case TT_WHILE: {
         parseWhile();
         break;
       }
-      case LexAnn.TT_RETURN: {
+      case TT_RETURN: {
         parseReturn();
         break;
       }
-      case LexAnn.TT_DEFFUNC: {
+      case TT_DEFFUNC: {
         parseFunctionDef();
         break;
       }
-      case LexAnn.TT_EXIT: {
+      case TT_EXIT: {
         parseExit();
       }
       default: {
@@ -301,7 +306,7 @@ class Parser {
     Object val;
     name = (String) tok.value;
     getNextToken();
-    if (tok.ttype != LexAnn.TT_EQ) {
+    if (tok.ttype != TT_EQ) {
       parseError("Expected '='");
     } else {
       getNextToken();
@@ -320,36 +325,32 @@ class Parser {
 
   // Handles function execution
   Object callFunction (String name, List<Object> params) throws FSException {
-    FuncEntry fDef;
-    int n;
-    int oldLine;
-    Object val;
-    val = null;
+    Object val = null;
     // Check we have a definition for the function
     if (funcs.containsKey(name)) {
-      fDef = (FuncEntry) funcs.get(name);
+      FuncEntry fDef = (FuncEntry) funcs.get(name);
       // Check params and def match
       if (fDef.paramNames.size() != params.size()) {
         parseError("Expected " + fDef.paramNames.size() + " parameters, Found " + params.size());
       }
       // Create a new parser instance to handle call
-      Parser p;
+      Parser parser;
       Map<String, Object> locals = new HashMap<>();
       // Push the params into the local scope
-      for (n = 0; n < fDef.paramNames.size(); n++) {
-        locals.put(fDef.paramNames.get(n), params.get(n));
+      for (int ii = 0; ii < fDef.paramNames.size(); ii++) {
+        locals.put(fDef.paramNames.get(ii), params.get(ii));
       }
       // watch for recursive calls
       if (gVars == null) {
-        p = new Parser(host, locals, vars, funcs);
+        parser = new Parser(host, locals, vars, funcs);
       } else {
-        p = new Parser(host, locals, gVars, funcs);
+        parser = new Parser(host, locals, gVars, funcs);
       }
       // cache the current execution point
-      oldLine = code.getCurLine();
-      p.setCode(code);
+      int oldLine = code.getCurLine();
+      parser.setCode(code);
       // let it rip
-      val = p.parse(fDef.startLine + 1, fDef.endLine - 1);
+      val = parser.parse(fDef.startLine + 1, fDef.endLine - 1);
       // reset execution point
       code.setCurLine(oldLine);
     } else {// calls into super class  code...}
@@ -364,65 +365,63 @@ class Parser {
     return val;
   }
 
-  // Handle calls to a function
+  // Parses function calls
   private Object parseCallFunc (String name) throws FSException {
     List<Object> params = new ArrayList<>();
     // Set up the parameters
     do {
       getNextToken();
-      if (tok.ttype == ',') {
+      if (tok.ttype == TT_COMMA) {
         getNextToken();
-      } else if (tok.ttype == ')') {
+      } else if (tok.ttype == TT_RPAREN) {
         break;
       }
       params.add(parseExpr());
-    } while (tok.ttype == ',');
+    } while (tok.ttype == TT_COMMA);
     return callFunction(name, params);
   }
 
   // handles function definitions
   private void parseFunctionDef () throws FSException {
     FuncEntry fDef = new FuncEntry();
-    Object val;
-    String name, fName;
     fDef.startLine = code.getCurLine();
     getNextToken();
     // should be the function name
-    if (tok.ttype != LexAnn.TT_FUNC) {
+    if (tok.ttype != TT_FUNC) {
       parseError("Expected function start identifier");
     }
-    fName = (String) tok.value;
+    String fName = (String) tok.value;
     getNextToken();
     // should be a '('
-    if (tok.ttype != '(') {
+    if (tok.ttype != TT_LPAREN) {
       parseError("Expected (");
     }
     getNextToken();
     // parse the header...
-    while (tok.ttype != ')') {
-      if (tok.ttype != LexAnn.TT_DEFINT && tok.ttype != LexAnn.TT_DEFSTRING) {
+    while (tok.ttype != TT_RPAREN) {
+      if (tok.ttype != TT_DEFINT && tok.ttype != TT_DEFSTRING) {
         parseError("Expected type name");
       }
-      val = null; // keep the compiler happy..
-      if (tok.ttype == LexAnn.TT_DEFINT) {
+      Object val = null; // keep the compiler happy..
+      if (tok.ttype == TT_DEFINT) {
         val = 0;
-      } else if (tok.ttype == LexAnn.TT_DEFSTRING) {
+      } else if (tok.ttype == TT_DEFSTRING) {
         val = "";
       }
       getNextToken();
-      if (tok.ttype != LexAnn.TT_WORD) {
+      if (tok.ttype != TT_WORD) {
         parseError("Expected function parameter name identifier");
       }
-      name = (String) tok.value;
+      String name = (String) tok.value;
       fDef.paramNames.add(name);
       fDef.paramMap.put(name, val);
       getNextToken();
-      if (tok.ttype == ',') getNextToken();
+      if (tok.ttype == TT_COMMA) getNextToken();
     }
     // now we just skip to the endfunction
-    while ((tok.ttype != LexAnn.TT_EDEFFUNC) && (tok.ttype != LexAnn.TT_EOF)) {
+    while ((tok.ttype != TT_EDEFFUNC) && (tok.ttype != TT_EOF)) {
       getNextToken();
-      if (tok.ttype == LexAnn.TT_DEFFUNC)
+      if (tok.ttype == TT_DEFFUNC)
         parseError("Nested functions are illegal");
     }
     fDef.endLine = code.getCurLine();
@@ -441,36 +440,35 @@ class Parser {
     while (!end) {
       switch (tok.ttype) {
         // the various possible 'values'
-        case LexAnn.TT_INTEGER:
-        case LexAnn.TT_DOUBLE:
-        case LexAnn.TT_STRING:
-        case LexAnn.TT_WORD:
-        case LexAnn.TT_FUNC:
-        case LexAnn.TT_ARRAY: {
+        case TT_INTEGER:
+        case TT_DOUBLE:
+        case TT_STRING:
+        case TT_WORD:
+        case TT_FUNC:
+        case TT_ARRAY: {
           if (!prevOp) {
             parseError("Expected Operator");
           } else {
             val = null;
             ETreeNode node = new ETreeNode();
             node.type = ETreeNode.E_VAL;
-
             switch (tok.ttype) {
               // numbers - just get them
-              case LexAnn.TT_INTEGER:
+              case TT_INTEGER:
                 // strings - just get again
-              case LexAnn.TT_STRING: {
+              case TT_STRING: {
                 val = tok.value;
                 break;
               }
               // functions - evaluate them
-              case LexAnn.TT_FUNC: {
+              case TT_FUNC: {
                 String name = (String) tok.value;
                 getNextToken();
                 val = parseCallFunc(name);
                 break;
               }
               // arrays - evaluate them
-              case LexAnn.TT_ARRAY: {
+              case TT_ARRAY: {
                 String name = (String) tok.value;
                 getNextToken();         // should be a '['
                 getNextToken();         // should be the index
@@ -483,7 +481,7 @@ class Parser {
                 break;
               }
               // variables - resolve them
-              case LexAnn.TT_WORD: {
+              case TT_WORD: {
                 if (hasVar((String) tok.value)) {
                   val = getVar((String) tok.value);
                 } else {
@@ -542,24 +540,24 @@ class Parser {
          * points to get a reasonable approximation to correct operator
          *  precidence
          */
-        case LexAnn.TT_LEQ:
-        case LexAnn.TT_LNEQ:
-        case LexAnn.TT_MULT:
-        case LexAnn.TT_DIV:
-        case LexAnn.TT_MOD:
-        case LexAnn.TT_PLUS:
-        case LexAnn.TT_MINUS:
-        case LexAnn.TT_LGR:
-        case LexAnn.TT_LGRE:
-        case LexAnn.TT_LLSE:
-        case LexAnn.TT_LLS:
-        case LexAnn.TT_NOT:
-        case LexAnn.TT_LAND:
-        case LexAnn.TT_LOR: {
+        case TT_LEQ:
+        case TT_LNEQ:
+        case TT_MULT:
+        case TT_DIV:
+        case TT_MOD:
+        case TT_PLUS:
+        case TT_MINUS:
+        case TT_LGR:
+        case TT_LGRE:
+        case TT_LLSE:
+        case TT_LLS:
+        case TT_NOT:
+        case TT_LAND:
+        case TT_LOR: {
           if (prevOp) {
-            if (tok.ttype == LexAnn.TT_MINUS) {
+            if (tok.ttype == TT_MINUS) {
               negate = true;
-            } else if (tok.ttype == LexAnn.TT_NOT) {
+            } else if (tok.ttype == TT_NOT) {
               not = true;
             } else {
               parseError("Expected expression");
@@ -570,8 +568,7 @@ class Parser {
             node.value = tok.ttype;
             if (curNode.parent != null) {
               int curPrio = getPrio(tok.ttype);
-              int parPrio = getPrio((Integer) curNode.parent.value);
-
+              int parPrio = getPrio((Token) curNode.parent.value);
               if (curPrio <= parPrio) {
                 // this nodes parent is the current nodes grandparent
                 node.parent = curNode.parent.parent;
@@ -611,7 +608,7 @@ class Parser {
           }
           break;
         }
-        case '(':
+        case TT_LPAREN:
           // start of an bracketed expression, recursively call ourself to get a value
         {
           getNextToken();
@@ -653,57 +650,56 @@ class Parser {
   }
 
   // convenience function to get operator priority
-  private int getPrio (int op) {
+  private int getPrio (Token op) {
     return opPrio.get(op);
   }
 
   // evaluates the expression tree recursively
   private Object evalETree (ETreeNode node) throws FSException {
-    Object lVal, rVal;
     if (node.type == ETreeNode.E_VAL) {
       return node.value;
     }
-    lVal = evalETree(node.left);
-    rVal = evalETree(node.right);
-    switch ((Integer) node.value) {
+    Object lVal = evalETree(node.left);
+    Object rVal = evalETree(node.right);
+    switch ((Token) node.value) {
       // call the various eval functions
-      case LexAnn.TT_PLUS: {
+      case TT_PLUS: {
         return evalPlus(lVal, rVal);
       }
-      case LexAnn.TT_MINUS: {
+      case TT_MINUS: {
         return evalMinus(lVal, rVal);
       }
-      case LexAnn.TT_MULT: {
+      case TT_MULT: {
         return evalMult(lVal, rVal);
       }
-      case LexAnn.TT_DIV: {
+      case TT_DIV: {
         return evalDiv(lVal, rVal);
       }
-      case LexAnn.TT_LEQ: {
+      case TT_LEQ: {
         return evalEq(lVal, rVal);
       }
-      case LexAnn.TT_LNEQ: {
+      case TT_LNEQ: {
         return evalNEq(lVal, rVal);
       }
-      case LexAnn.TT_LLS: {
+      case TT_LLS: {
         return evalLs(lVal, rVal);
       }
-      case LexAnn.TT_LLSE: {
+      case TT_LLSE: {
         return evalLse(lVal, rVal);
       }
-      case LexAnn.TT_LGR: {
+      case TT_LGR: {
         return evalGr(lVal, rVal);
       }
-      case LexAnn.TT_LGRE: {
+      case TT_LGRE: {
         return evalGre(lVal, rVal);
       }
-      case LexAnn.TT_MOD: {
+      case TT_MOD: {
         return evalMod(lVal, rVal);
       }
-      case LexAnn.TT_LAND: {
+      case TT_LAND: {
         return evalAnd(lVal, rVal);
       }
-      case LexAnn.TT_LOR: {
+      case TT_LOR: {
         return evalOr(lVal, rVal);
       }
     }
@@ -755,14 +751,7 @@ class Parser {
   // Logical AND
   private Object evalAnd (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
-      boolean b1, b2;
-      b1 = (Integer) lVal != 0;
-      b2 = (Integer) rVal != 0;
-      if (b1 && b2) {
-        return 1;
-      } else {
-        return 0;
-      }
+      return (Integer) lVal != 0 && (Integer) rVal != 0 ? 1 : 0;
     } else {
       parseError("Type Mismatch for operator &&");
     }
@@ -772,14 +761,7 @@ class Parser {
   // Logical Or
   private Object evalOr (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
-      boolean b1, b2;
-      b1 = (Integer) lVal != 0;
-      b2 = (Integer) rVal != 0;
-      if (b1 || b2) {
-        return 1;
-      } else {
-        return 0;
-      }
+      return (Integer) lVal != 0 || (Integer) rVal != 0 ? 1 : 0;
     } else {
       parseError("Type Mismatch for operator ||");
     }
@@ -799,17 +781,9 @@ class Parser {
   // logical equal
   private Object evalEq (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
-      if (lVal.equals(rVal)) {
-        return 1;
-      } else {
-        return 0;
-      }
+      return lVal.equals(rVal) ? 1 : 0;
     } else if (lVal instanceof String && rVal instanceof String) {
-      if (lVal.equals(rVal)) {
-        return 1;
-      } else {
-        return 0;
-      }
+      return lVal.equals(rVal) ? 1 : 0;
     } else {
       parseError("Type Mismatch for operator ==");
     }
@@ -819,17 +793,9 @@ class Parser {
   // <
   private Object evalLs (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
-      if ((Integer) lVal < (Integer) rVal) {
-        return 1;
-      } else {
-        return 0;
-      }
+      return (Integer) lVal < (Integer) rVal ? 1 : 0;
     } else if (lVal instanceof String && rVal instanceof String) {
-      if (((String) lVal).compareTo((String) rVal) < 0) {
-        return 1;
-      } else {
-        return 0;
-      }
+      return ((String) lVal).compareTo((String) rVal) < 0 ? 1 : 0;
     } else {
       parseError("Type Mismatch for operator <");
     }
@@ -839,17 +805,9 @@ class Parser {
   // <=
   private Object evalLse (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
-      if ((Integer) lVal <= (Integer) rVal) {
-        return 1;
-      } else {
-        return 0;
-      }
+      return (Integer) lVal <= (Integer) rVal ? 1 : 0;
     } else if (lVal instanceof String && rVal instanceof String) {
-      if (((String) lVal).compareTo((String) rVal) <= 0) {
-        return 1;
-      } else {
-        return 0;
-      }
+      return ((String) lVal).compareTo((String) rVal) <= 0 ? 1 : 0;
     } else {
       parseError("Type Mismatch for operator <=");
     }
@@ -859,17 +817,9 @@ class Parser {
   // >
   private Object evalGr (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
-      if ((Integer) lVal > (Integer) rVal) {
-        return 1;
-      } else {
-        return 0;
-      }
+      return (Integer) lVal > (Integer) rVal ? 1 : 0;
     } else if (lVal instanceof String && rVal instanceof String) {
-      if (((String) lVal).compareTo((String) rVal) > 0) {
-        return 1;
-      } else {
-        return 0;
-      }
+      return ((String) lVal).compareTo((String) rVal) > 0 ? 1 : 0;
     } else {
       parseError("Type Mismatch for operator >");
     }
@@ -879,17 +829,9 @@ class Parser {
   // >=
   private Object evalGre (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
-      if ((Integer) lVal >= (Integer) rVal) {
-        return 1;
-      } else {
-        return 0;
-      }
+      return (Integer) lVal >= (Integer) rVal ? 1 : 0;
     } else if (lVal instanceof String && rVal instanceof String) {
-      if (((String) lVal).compareTo((String) rVal) >= 0) {
-        return 1;
-      } else {
-        return 0;
-      }
+      return ((String) lVal).compareTo((String) rVal) >= 0 ? 1 : 0;
     } else {
       parseError("Type Mismatch for operator >=");
     }
@@ -899,68 +841,36 @@ class Parser {
   // logical inequallity
   private Object evalNEq (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
-      if (!lVal.equals(rVal)) {
-        return 1;
-      } else {
-        return 0;
-      }
+      return !lVal.equals(rVal) ? 1 : 0;
     } else if (lVal instanceof String && rVal instanceof String) {
-      if (!lVal.equals(rVal)) {
-        return 1;
-      } else {
-        return 0;
-      }
+      return !lVal.equals(rVal) ? 1 : 0;
     } else {
       parseError("Type Mismatch for operator !=");
     }
     return null;
   }
 
-  /*
-  private void printWTree (ETreeNode node) {
-    while (node.parent != null) {
-      node = node.parent;
-    }
-    printETree(node);
-  }
-
-  private void printETree (ETreeNode node) {
-    System.out.println(node);
-    if (node.left != null) {
-      System.out.print("Left");
-      printETree(node.left);
-    }
-    if (node.right != null) {
-      System.out.print("Right");
-      printETree(node.right);
-    }
-  }
-  */
-
   private void parseIf () throws FSException {
     Integer val;
-    int depth;
     boolean then = false;
     getNextToken();
     try {
       val = (Integer) parseExpr();
     } catch (ClassCastException cce) {
       parseError("If condition needs to be Integer");
-      return; // just to make sure the compiler doesn't complain
-              // as we know parseError throws an exception (stupid compiler)
+      return;
     }
     // handle the one line if-then construct
-    if (tok.ttype == LexAnn.TT_THEN) {
+    if (tok.ttype == TT_THEN) {
       getNextToken();
       // is this a single line then (or just a optional then)
-      if (tok.ttype != LexAnn.TT_EOL) {
+      if (tok.ttype != TT_EOL) {
         // single line if then construct - run separately
-        // tok.pushBack();
         if (val != 0) {
           parseStmt();
         } else {
           // consume to EOL
-          while (tok.ttype != LexAnn.TT_EOL) {
+          while (tok.ttype != TT_EOL) {
             getNextToken();
           }
         }
@@ -970,32 +880,32 @@ class Parser {
     if (!then) {
       if (val != 0) {
         getNextToken();
-        while ((tok.ttype != LexAnn.TT_EIF) &&
-               (tok.ttype != LexAnn.TT_ELSE) &&
-               (tok.ttype != LexAnn.TT_EOF) &&
-               (tok.ttype != LexAnn.TT_ELSIF)) {
+        while (tok.ttype != TT_EIF &&
+               tok.ttype != TT_ELSE &&
+               tok.ttype != TT_EOF &&
+               tok.ttype != TT_ELSIF) {
           // run the body of the if
           parseStmt();
           getNextToken();
         }
-        if (tok.ttype == LexAnn.TT_ELSE || tok.ttype == LexAnn.TT_ELSIF) {
+        if (tok.ttype == TT_ELSE || tok.ttype == TT_ELSIF) {
           // skip else clause -
           // have to do this taking into acount nesting
-          depth = 1;
+          int depth = 1;
           do {
             getNextToken();
-            if (tok.ttype == LexAnn.TT_IF)
+            if (tok.ttype == TT_IF)
               depth++;
-            if (tok.ttype == LexAnn.TT_EOF)
+            if (tok.ttype == TT_EOF)
               parseError("can't find endif");
-            if (tok.ttype == LexAnn.TT_EIF)
+            if (tok.ttype == TT_EIF)
               depth--;
             // A then could indicate a one line
             // if - then construct, then we don't increment
             // depth
-            if (tok.ttype == LexAnn.TT_THEN) {
+            if (tok.ttype == TT_THEN) {
               getNextToken();
-              if (tok.ttype != LexAnn.TT_EOL) {
+              if (tok.ttype != TT_EOL) {
                 depth--;
               }
               tok.pushBack();
@@ -1007,34 +917,41 @@ class Parser {
         }
       } else {
         // skip to else clause
-        depth = 1;
+        int depth = 1;
         do {
           getNextToken();
-          if (tok.ttype == LexAnn.TT_IF) depth++;
-          if (tok.ttype == LexAnn.TT_EOF)
+          if (tok.ttype == TT_IF) {
+            depth++;
+          }
+          if (tok.ttype == TT_EOF) {
             parseError("can't find endif");
-          if ((tok.ttype == LexAnn.TT_EIF)) depth--;
-          if ((tok.ttype == LexAnn.TT_ELSE || tok.ttype == LexAnn.TT_ELSIF) && depth == 1) depth--;
+          }
+          if ((tok.ttype == TT_EIF)) {
+            depth--;
+          }
+          if ((tok.ttype == TT_ELSE || tok.ttype == TT_ELSIF) && depth == 1) {
+            depth--;
+          }
           // A then could indicate a one line
           // if - then construct, then we don't increment depth
-          if (tok.ttype == LexAnn.TT_THEN) {
+          if (tok.ttype == TT_THEN) {
             getNextToken();
-            if (tok.ttype != LexAnn.TT_EOL) {
+            if (tok.ttype != TT_EOL) {
               depth--;
             }
             tok.pushBack();
           }
         } while (depth > 0);
-        if (tok.ttype == LexAnn.TT_ELSE) {
+        if (tok.ttype == TT_ELSE) {
           getNextToken();
           getNextToken();
           // run else clause
-          while (tok.ttype != LexAnn.TT_EIF) {
+          while (tok.ttype != TT_EIF) {
             parseStmt();
             getNextToken();
           }
           getNextToken();
-        } else if (tok.ttype == LexAnn.TT_ELSIF) {
+        } else if (tok.ttype == TT_ELSIF) {
           parseIf();
         } else {
           getNextToken();
@@ -1043,18 +960,14 @@ class Parser {
     }
   }
 
+  // parses the while statement
   private void parseWhile () throws FSException {
-    // parses the while statement
-    Integer val;
-    int startLine;
-    int depth;
-    startLine = code.getCurLine();
+    int startLine = code.getCurLine();
     getNextToken();
-    val = (Integer) parseExpr();
+    Integer val = (Integer) parseExpr();
     getNextToken();
     while (val != 0) {
-      while ((tok.ttype != LexAnn.TT_EWHILE) &&
-          (tok.ttype != LexAnn.TT_EOF)) {
+      while ((tok.ttype != TT_EWHILE) && (tok.ttype != TT_EOF)) {
         parseStmt();
         getNextToken();
       }
@@ -1066,13 +979,18 @@ class Parser {
       getNextToken();
     }
     // skip to endwhile
-    depth = 1;
+    int depth = 1;
     do {
       getNextToken();
-      if (tok.ttype == LexAnn.TT_WHILE) depth++;
-      if (tok.ttype == LexAnn.TT_EWHILE) depth--;
-      if (tok.ttype == LexAnn.TT_EOF)
+      if (tok.ttype == TT_WHILE) {
+        depth++;
+      }
+      if (tok.ttype == TT_EWHILE) {
+        depth--;
+      }
+      if (tok.ttype == TT_EOF) {
         parseError("can't find endwhile");
+      }
     } while (depth > 0);
     getNextToken();
 
@@ -1080,56 +998,48 @@ class Parser {
 
 
   private void parseVarDef () throws FSException {
-    int type = 0;
-    String name;
-    if (tok.ttype == LexAnn.TT_DEFINT) {
-      type = LexAnn.TT_DEFINT;
-    } else if (tok.ttype == LexAnn.TT_DEFSTRING) {
-      type = LexAnn.TT_DEFSTRING;
-    } else if (tok.ttype == LexAnn.TT_DEFDOUBLE) {
-      type = LexAnn.TT_DEFDOUBLE;
-    } else {
+    Token type = tok.ttype;
+    if (tok.ttype != TT_DEFINT && tok.ttype != TT_DEFSTRING && tok.ttype != TT_DEFDOUBLE) {
       parseError("Expected 'int','string' or 'double'");
     }
     do {
       getNextToken();
-      if (tok.ttype != LexAnn.TT_WORD) {
+      if (tok.ttype != TT_WORD) {
         parseError("Expected variable name identifier,");
       }
-      name = (String) tok.value;
+      String name = (String) tok.value;
       switch (type) {
-        case LexAnn.TT_DEFINT: {
+        case TT_DEFINT: {
           addVar(name, 0);
           break;
         }
-        case LexAnn.TT_DEFSTRING: {
+        case TT_DEFSTRING: {
           addVar(name, "");
           break;
         }
       }
       getNextToken();
-      if (tok.ttype == LexAnn.TT_EQ) {
+      if (tok.ttype == TT_EQ) {
         getNextToken();
         setVar(name, parseExpr());
-      } else if (tok.ttype != ',' && tok.ttype != LexAnn.TT_EOL) {
+      } else if (tok.ttype != TT_COMMA && tok.ttype != TT_EOL) {
         parseError("Expected ','");
       }
-    } while (tok.ttype != LexAnn.TT_EOL);
+    } while (tok.ttype != TT_EOL);
   }
 
-  // format an error message and throw FSException
+  // Format an error message and throw FSException
   private void parseError (String s) throws FSException {
-    String t;
-    error = new String[6];
-    t = tok.toString();
-    // set up our error block
+    error = new String[5];
+    String tstr = tok.toString();
+    // Set up our error block
     error[0] = s;
     error[1] = (new Integer(code.getCurLine())).toString();
     error[2] = code.getLine();
-    error[3] = t;
+    error[3] = tstr;
     error[4] = vars.toString();
     if (gVars != null) error[5] = gVars.toString();
-    // then build the display string
+    // Build the display string
     int lineNum = code.getCurLine();
     StringBuilder err = new StringBuilder(s);
     err.append("\n\t at line: ");
@@ -1151,7 +1061,7 @@ class Parser {
     err.append("\n\t\t  ");
     err.append(code.getLine(lineNum + 2));
     err.append("\n\t current token: ");
-    err.append(t);
+    err.append(tstr);
     err.append("\n\t Variable dump: ");
     err.append(vars);
     if (gVars != null) {
@@ -1168,12 +1078,12 @@ class Parser {
 
   // misc token access routines
   private void getNextToken () {
-    if ((tok.ttype == LexAnn.TT_EOL) && (code.getCurLine() < maxLine)) {
+    if ((tok.ttype == TT_EOL) && (code.getCurLine() < maxLine)) {
       code.setCurLine(code.getCurLine() + 1);
       tok.setString(code.getLine());
       tok.nextToken();
-    } else if (tok.ttype == LexAnn.TT_EOL) {
-      tok.ttype = LexAnn.TT_EOF; // the only place this gets set
+    } else if (tok.ttype == TT_EOL) {
+      tok.ttype = TT_EOF; // the only place this gets set
     } else {
       tok.nextToken();
     }
@@ -1209,10 +1119,9 @@ class Parser {
 
 
   void setVar (String name, Object val) throws FSException {
-    Object obj;
     if (val == null) parseError("set variable " + name + " with null value");
     if (vars.containsKey(name)) {
-      obj = vars.get(name);
+      Object obj = vars.get(name);
       assert val != null;
       if (val.getClass() != obj.getClass()) {
         parseError("Incompatible types");
@@ -1220,7 +1129,7 @@ class Parser {
       vars.remove(name);
       vars.put(name, val);
     } else if (gVars.containsKey(name)) {
-      obj = gVars.get(name);
+      Object obj = gVars.get(name);
       assert val != null;
       if (val.getClass() != obj.getClass()) {
         parseError("Incompatible types");
@@ -1244,8 +1153,8 @@ class Parser {
   }
 
   // Can be called from external functions to force an exit
-  void exit (Object o) throws FSException {
-    retVal = o;
+  void exit (Object ret) throws FSException {
+    retVal = ret;
     throw new ExitException();
   }
 
@@ -1255,28 +1164,24 @@ class Parser {
   private void checkLine (String line) throws FSException {
     boolean inQuotes = false;
     int brCount = 0;
-    char[] chars;
-    int n;
     if (line != null) {
       if (!line.trim().startsWith("#")) {
-        chars = line.toCharArray();
-        for (n = 0; n < chars.length; n++) {
+        char[] chars = line.toCharArray();
+        for (int idx = 0; idx < chars.length; idx++) {
           if (inQuotes) {
-            if (chars[n] == '"') {
-              if (n >= 1) {
-                if (chars[n - 1] != '\\') {
-                  inQuotes = false;
-                }
+            if (chars[idx] == '"') {
+              if (chars[idx - 1] != '\\') {
+                inQuotes = false;
               }
             }
           } else {
-            if (chars[n] == '(') {
+            if (chars[idx] == '(') {
               brCount++;
-            } else if (chars[n] == ')') {
+            } else if (chars[idx] == ')') {
               brCount--;
-            } else if (chars[n] == '"') {
-              if (n >= 1) {
-                if (chars[n - 1] != '\\') {
+            } else if (chars[idx] == '"') {
+              if (idx >= 1) {
+                if (chars[idx - 1] != '\\') {
                   inQuotes = true;
                 }
               }
