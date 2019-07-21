@@ -21,8 +21,8 @@ import java.util.prefs.Preferences;
 
 public class FScriptRunner extends JFrame {
   private transient Preferences prefs = Preferences.userRoot().node(this.getClass().getName());
-  private CodeEditPane          output = new CodeEditPane();
-  private CodeEditPane          code = new CodeEditPane();
+  private CodeEditPane          output;
+  private CodeEditPane          code;
 
   /**
    * BasicIO implements the external functiona available to the FScript Interpreter
@@ -33,12 +33,11 @@ public class FScriptRunner extends JFrame {
       switch (name) {
         case "print":
         case "println": {
-          int n;
-          StringBuilder s = new StringBuilder();
-          for (n = 0; n < param.size(); n++) {
-            s.append(param.get(n));
+          StringBuilder str = new StringBuilder();
+          for (Object obj : param) {
+            str.append(obj);
           }
-          output.appendText(s.toString() + ("println".equals(name) ? "\n" : ""));
+          output.appendText(str.toString() + ("println".equals(name) ? "\n" : ""));
           break;
         }
         case "add":
@@ -59,8 +58,8 @@ public class FScriptRunner extends JFrame {
     setLayout(new BorderLayout());
     JPanel panel = new JPanel(new GridLayout(2, 1));
     panel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-    panel.add(output);
-    panel.add(code);
+    panel.add(output = new CodeEditPane("Output", false));
+    panel.add(code = new CodeEditPane("FScript", true));
     add(panel, BorderLayout.CENTER);
     JButton run = new JButton("RUN");
     add(run, BorderLayout.SOUTH);
@@ -72,10 +71,11 @@ public class FScriptRunner extends JFrame {
         fs.addLines(line);
       }
       try {
-        Object o = fs.runCode();
-        output.appendText("Code returned: " + o + "\n");
+        output.setText("");
+        Object ret = fs.runCode();
+        output.appendText("Code returned: " + ret + "\n");
       } catch (FSException ex) {
-        ex.printStackTrace();
+        output.appendText(ex.getMessage() + "\n");
       }
     });
     code.setText(getFile(new File("loop.script")));

@@ -1130,38 +1130,41 @@ class Parser {
     error[4] = vars.toString();
     if (gVars != null) error[5] = gVars.toString();
     // then build the display string
-    int l = code.getCurLine();
-    s = "\n\t" + s + "\n\t\t at line:" + l + " ";
-    s += "\n\t\t\t  " + code.getLine(l - 2);
-    s += "\n\t\t\t  " + code.getLine(l - 1);
-    s += "\n\t\t\t> " + code.getLine(l) + " <";
-    s += "\n\t\t\t  " + code.getLine(l + 1);
-    s += "\n\t\t\t  " + code.getLine(l + 2);
-    s = s + "\n\t\t current token:" + t;
-    s = s + "\n\t\t Variable dump:" + vars;
-    if (gVars != null) {
-      s = s + "\n\t\t Globals:" + gVars;
+    int lineNum = code.getCurLine();
+    StringBuilder err = new StringBuilder(s);
+    err.append("\n\t at line: ");
+    err.append(lineNum + 1);
+    err.append(" ");
+    if (lineNum >= 2) {
+      err.append("\n\t\t  ");
+      err.append(code.getLine(lineNum - 2));
     }
-    throw new FSException(s);
+    if (lineNum >= 1) {
+      err.append("\n\t\t  ");
+      err.append(code.getLine(lineNum - 1));
+    }
+    err.append("\n\t\t> ");
+    err.append(code.getLine(lineNum));
+    err.append(" <");
+    err.append("\n\t\t  ");
+    err.append(code.getLine(lineNum + 1));
+    err.append("\n\t\t  ");
+    err.append(code.getLine(lineNum + 2));
+    err.append("\n\t current token: ");
+    err.append(t);
+    err.append("\n\t Variable dump: ");
+    err.append(vars);
+    if (gVars != null) {
+      err.append("\n\t Globals: ");
+      err.append(gVars);
+    }
+    throw new FSException(err.toString());
   }
 
   // return the error block
   String[] getError () {
     return error;
   }
-
-  // Other non SM related routines
-
-  /*
-  private boolean pComp (String s) {
-    // a compare for (String)tok.value strings - that avoids the null problem
-    if (tok.value != null) {
-      return tok.value.equals(s);
-    } else {
-      return false;
-    }
-  }
-  */
 
   // misc token access routines
   private void getNextToken () {
