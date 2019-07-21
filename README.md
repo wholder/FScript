@@ -25,5 +25,5 @@ Java 8 JDK, or later must be installed in order to compile the code.  There is a
 
 ## Credits
 FScript uses the following Java code to perform some of its functions, or build this project:
-- [FScript](http://fscript.sourceforge.net) this code is derived from FScript by Joachim Van der Auwera (murlen)
+-  This code is derived from [FScript](http://fscript.sourceforge.net) by Joachim Van der Auwera (aka murlen)
 - [IntelliJ IDEA from JetBrains](https://www.jetbrains.com/idea/) (my favorite development environment for Java coding. Thanks JetBrains!)
