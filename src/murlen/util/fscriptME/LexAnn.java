@@ -60,14 +60,14 @@ class LexAnn {
     TT_ARRAY,
     // Keywords
     TT_IF,
-    TT_EIF,
+    TT_ENDIF,
     TT_ELSE,
     TT_ELSIF,
     TT_THEN,
     TT_DEFFUNC,
-    TT_EDEFFUNC,
+    TT_ENDDEFFUNC,
     TT_WHILE,
-    TT_EWHILE,
+    TT_ENDWHILE,
     TT_DEFINT,
     TT_DEFSTRING,
     TT_DEFDOUBLE,
@@ -248,7 +248,7 @@ class LexAnn {
       } else if (value.equals("then")) {
         ttype = Token.TT_THEN;
       } else if (value.equals("endif")) {
-        ttype = Token.TT_EIF;
+        ttype = Token.TT_ENDIF;
       } else if (value.equals("else")) {
         ttype = Token.TT_ELSE;
       } else if (value.equals("elseif")) {
@@ -256,11 +256,11 @@ class LexAnn {
       } else if (value.equals("while")) {
         ttype = Token.TT_WHILE;
       } else if (value.equals("endwhile")) {
-        ttype = Token.TT_EWHILE;
+        ttype = Token.TT_ENDWHILE;
       } else if (value.equals("func")) {
         ttype = Token.TT_DEFFUNC;
       } else if (value.equals("endfunc")) {
-        ttype = Token.TT_EDEFFUNC;
+        ttype = Token.TT_ENDDEFFUNC;
       } else if (value.equals("return")) {
         ttype = Token.TT_RETURN;
       } else if (value.equals("exit")) {

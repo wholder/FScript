@@ -12,7 +12,6 @@ import java.awt.event.ComponentEvent;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.StringTokenizer;
 import java.util.prefs.Preferences;
 
 /**
@@ -62,15 +61,11 @@ public class FScriptRunner extends JFrame {
     JButton run = new JButton("RUN");
     add(run, BorderLayout.SOUTH);
     run.addActionListener(ev -> {
-      BasicIO fs = new BasicIO();
-      StringTokenizer tok = new StringTokenizer(code.getText(), "\n");
-      while (tok.hasMoreElements()) {
-        String line = tok.nextToken();
-        fs.addLines(line);
-      }
       try {
+        BasicIO runner = new BasicIO();
+        runner.addLines(code.getText());
         output.setText("");
-        Object ret = fs.runCode();
+        Object ret = runner.runCode();
         output.appendText("Code returned: " + ret + "\n");
       } catch (FSException ex) {
         output.appendText(ex.getMessage() + "\n");

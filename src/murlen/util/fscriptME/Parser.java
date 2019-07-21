@@ -60,13 +60,14 @@ class Parser {
   private static Map<Token, Integer> opPrio = new HashMap<>();    // operator priority table
   private Map<String, Object> vars = new HashMap<>();               // function local variables
   private Map<String, Object> funcs = new HashMap<>();              // function map
-  private Map<String, Object> gVars;                                // global variables
+  private Map<String, Object> gVars  = new HashMap<>();             // global variables
   private LineLoader          code;                                 // the code
   private LexAnn              tok;                                  // tokenizer
   private FScript             host;                                 // link to hosting FScript object
   private Object              retVal;                               // return value
   private int                 maxLine;
   private String[]            error;
+  private boolean             nested;
 
   static {
     // Setup operator priority table from low to high
@@ -108,23 +109,23 @@ class Parser {
   /**
    * Public constructor
    *
-   * @param h a reference to the FScript object
+   * @param host a reference to the FScript object
    */
-  Parser (FScript h) {
-    gVars = null;
-    host = h;
+  Parser (FScript host) {
+    this.host = host;
   }
 
-  // only used for function calls - note it is private
-  private Parser (FScript h, Map<String, Object> l, Map<String, Object> g, Map<String, Object> f) {
-    vars = l;
-    gVars = g;
-    funcs = f;
-    host = h;
+  // Used only for function calls - note it is private
+  private Parser (FScript host, Map<String, Object> local, Map<String, Object> global, Map<String, Object> funcs) {
+    this.host = host;
+    vars = local;
+    gVars = global;
+    this.funcs = funcs;
+    nested = true;
   }
 
   /**
-   * Sets the LineLoader clas to be used for input
+   * Sets the LineLoader class to be used for input
    *
    * @param in - the class
    */
@@ -133,7 +134,7 @@ class Parser {
   }
 
   /**
-   * The main parsing function
+   * Main parsing function
    *
    * @param from - the start line number
    * @param to   - the end line number
@@ -141,20 +142,22 @@ class Parser {
    */
   Object parse (int from, int to) throws FSException {
     // Nothing to do when starting beyond the code end
-    if (code.lineCount() <= from) return null;
+    if (code.lineCount() <= from) {
+      return null;
+    }
     maxLine = to;
     code.setCurLine(from);
-    tok = new LexAnn(code.getLine());
-    checkLine(code.getLine());
+    String line = code.getCurrentLine();
+    tok = new LexAnn(line);
+    checkLine(line);
     getNextToken();
     while (tok.ttype != TT_EOF) {
       // a script must always start with a word...
       try {
         parseStmt();
-      } catch (ExitException e) {
-        throw e;
-
-      } catch (RetException e) {
+      } catch (ExitException ex) {
+        throw ex;
+      } catch (RetException ex) {
         return retVal;
       }
       getNextToken();
@@ -163,29 +166,25 @@ class Parser {
   }
 
   /**
-   * Resets the parser state.
+   * Reset the parser state
    */
   void reset () {
-    if (vars != null) {
-      vars.clear();
-    }
-    if (gVars != null) {
-      gVars.clear();
-    }
+    vars.clear();
+    gVars.clear();
   }
 
-  // statement - top level thing
+  // Statement - top level thing
   private void parseStmt () throws FSException {
     switch (tok.ttype) {
       case TT_IF:
-      case TT_EIF:
+      case TT_ENDIF:
       case TT_WHILE:
-      case TT_EWHILE:
+      case TT_ENDWHILE:
       case TT_DEFINT:
       case TT_DEFSTRING:
       case TT_DEFFUNC:
       case TT_EXIT:
-      case TT_EDEFFUNC:
+      case TT_ENDDEFFUNC:
       case TT_RETURN: {
         parseKeyWord();
         break;
@@ -280,27 +279,27 @@ class Parser {
         parseExit();
       }
       default: {
-        // we never get here
+        // We never get here
         parseError("Not a keyword");
       }
     }
   }
 
-  // handles 'return' statements
+  // Handle 'return' statements
   private void parseReturn () throws FSException {
     getNextToken();
     retVal = parseExpr();
     throw new RetException();
   }
 
-  // handles 'exit' statements
+  // Handle 'exit' statements
   private void parseExit () throws FSException {
     getNextToken();
     retVal = parseExpr();
     throw new ExitException();
   }
 
-  // Asignment parser
+  // Assignment parser
   private void parseAssign () throws FSException {
     String name;
     Object val;
@@ -323,9 +322,8 @@ class Parser {
     }
   }
 
-  // Handles function execution
+  // Handle function execution
   Object callFunction (String name, List<Object> params) throws FSException {
-    Object val = null;
     // Check we have a definition for the function
     if (funcs.containsKey(name)) {
       FuncEntry fDef = (FuncEntry) funcs.get(name);
@@ -340,29 +338,31 @@ class Parser {
       for (int ii = 0; ii < fDef.paramNames.size(); ii++) {
         locals.put(fDef.paramNames.get(ii), params.get(ii));
       }
-      // watch for recursive calls
-      if (gVars == null) {
+      // Watch for recursive calls
+      if (!nested) {
         parser = new Parser(host, locals, vars, funcs);
       } else {
         parser = new Parser(host, locals, gVars, funcs);
       }
-      // cache the current execution point
+      // Cache the current execution point
       int oldLine = code.getCurLine();
       parser.setCode(code);
-      // let it rip
-      val = parser.parse(fDef.startLine + 1, fDef.endLine - 1);
-      // reset execution point
+      // Let it rip
+      Object val = parser.parse(fDef.startLine + 1, fDef.endLine - 1);
+      // Reset execution point
       code.setCurLine(oldLine);
-    } else {// calls into super class  code...}
+      return val;
+    } else {
+      // Calls into super class code...}
       try {
-        val = host.callFunction(name, params);
+        return host.callFunction(name, params);
       } catch (ExitException e) {
         throw e;
       } catch (Exception e) {
         parseError(e.getMessage());
       }
     }
-    return val;
+    return null;
   }
 
   // Parses function calls
@@ -381,7 +381,7 @@ class Parser {
     return callFunction(name, params);
   }
 
-  // handles function definitions
+  // Handle function definitions
   private void parseFunctionDef () throws FSException {
     FuncEntry fDef = new FuncEntry();
     fDef.startLine = code.getCurLine();
@@ -419,7 +419,7 @@ class Parser {
       if (tok.ttype == TT_COMMA) getNextToken();
     }
     // now we just skip to the endfunction
-    while ((tok.ttype != TT_EDEFFUNC) && (tok.ttype != TT_EOF)) {
+    while ((tok.ttype != TT_ENDDEFFUNC) && (tok.ttype != TT_EOF)) {
       getNextToken();
       if (tok.ttype == TT_DEFFUNC)
         parseError("Nested functions are illegal");
@@ -535,10 +535,10 @@ class Parser {
           break;
         }
         /*
-         * operators - have to be more carefull with these.
+         * Operators - have to be more carefull with these.
          * We build an expression tree - inserting the nodes at the right
          * points to get a reasonable approximation to correct operator
-         *  precidence
+         *  precedence
          */
         case TT_LEQ:
         case TT_LNEQ:
@@ -570,47 +570,45 @@ class Parser {
               int curPrio = getPrio(tok.ttype);
               int parPrio = getPrio((Token) curNode.parent.value);
               if (curPrio <= parPrio) {
-                // this nodes parent is the current nodes grandparent
+                // This nodes parent is the current node's grandparent
                 node.parent = curNode.parent.parent;
-                // our nodes left leg is now linked into the current nodes
-                // parent
+                // Our nodes left leg is now linked into the current node's parent
                 node.left = curNode.parent;
-                // hook into grandparent
+                // Hook into grandparent
                 if (curNode.parent.parent != null) {
                   curNode.parent.parent.right = node;
                 }
-                // the current nodes parent is now us (because of above)
+                // Current nodes parent is now us (because of above)
                 curNode.parent = node;
-                // set the current node.
+                // Set the current node.
                 curNode = node;
               } else {
-                // current node's parent's right is now us.
+                // Current node's parent's right is now us
                 curNode.parent.right = node;
-                // our nodes left is the current node.
+                // Our nodes left is the current node
                 node.left = curNode;
-                // our nodes parent is the current node's parent.
+                // our nodes parent is the current node's parent
                 node.parent = curNode.parent;
-                // curent nodes parent is now us.
+                // Curent nodes parent is now us.
                 curNode.parent = node;
                 // set the current node.
                 curNode = node;
               }
             } else {
-              // our node's left is the current node
+              // Our node's left is the current node
               node.left = curNode;
-              // current node's parent is us now
-              // we don't have to set our parent, as it is null.
+              // Current node's parent is us now
+              // We don't have to set our parent, as it is null
               curNode.parent = node;
-              // set current node
+              // Set current node
               curNode = node;
             }
             prevOp = true;
           }
           break;
         }
-        case TT_LPAREN:
-          // start of an bracketed expression, recursively call ourself to get a value
-        {
+        case TT_LPAREN: {
+          // Start of an bracketed expression, recursively call ourself to get a value
           getNextToken();
           val = parseExpr();
           ETreeNode node = new ETreeNode();
@@ -640,7 +638,7 @@ class Parser {
         tok.nextToken();
       }
     }
-    // find the top of the tree we just built.
+    // Find the top of the tree we just built.
     if (curNode == null) parseError("Missing Expression");
     assert curNode != null;
     while (curNode.parent != null) {
@@ -649,12 +647,12 @@ class Parser {
     return evalETree(curNode);
   }
 
-  // convenience function to get operator priority
+  // Get operator priority
   private int getPrio (Token op) {
     return opPrio.get(op);
   }
 
-  // evaluates the expression tree recursively
+  // Evaluate the expression tree recursively
   private Object evalETree (ETreeNode node) throws FSException {
     if (node.type == ETreeNode.E_VAL) {
       return node.value;
@@ -706,7 +704,7 @@ class Parser {
     return null;
   }
 
-  // addition
+  // Addition
   private Object evalPlus (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
       return (Integer) lVal + (Integer) rVal;
@@ -718,7 +716,7 @@ class Parser {
     return null;
   }
 
-  // subtraction
+  // Subtraction
   private Object evalMinus (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
       return (Integer) lVal - (Integer) rVal;
@@ -728,7 +726,7 @@ class Parser {
     return null;
   }
 
-  // multiplication
+  // Multiplication
   private Object evalMult (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
       return (Integer) lVal * (Integer) rVal;
@@ -738,7 +736,7 @@ class Parser {
     return null;
   }
 
-  // modulus
+  // Modulus
   private Object evalMod (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
       return (Integer) lVal % (Integer) rVal;
@@ -768,7 +766,7 @@ class Parser {
     return null;
   }
 
-  // division
+  // Division
   private Object evalDiv (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
       return (Integer) lVal / (Integer) rVal;
@@ -778,7 +776,7 @@ class Parser {
     return null;
   }
 
-  // logical equal
+  // Logical equal
   private Object evalEq (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
       return lVal.equals(rVal) ? 1 : 0;
@@ -790,7 +788,7 @@ class Parser {
     return null;
   }
 
-  // <
+  // Evaluate <
   private Object evalLs (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
       return (Integer) lVal < (Integer) rVal ? 1 : 0;
@@ -802,7 +800,7 @@ class Parser {
     return null;
   }
 
-  // <=
+  // Evaluate <=
   private Object evalLse (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
       return (Integer) lVal <= (Integer) rVal ? 1 : 0;
@@ -814,7 +812,7 @@ class Parser {
     return null;
   }
 
-  // >
+  // Evaluate >
   private Object evalGr (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
       return (Integer) lVal > (Integer) rVal ? 1 : 0;
@@ -826,7 +824,7 @@ class Parser {
     return null;
   }
 
-  // >=
+  // Evaluate >=
   private Object evalGre (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
       return (Integer) lVal >= (Integer) rVal ? 1 : 0;
@@ -838,7 +836,7 @@ class Parser {
     return null;
   }
 
-  // logical inequallity
+  // Logical inequallity
   private Object evalNEq (Object lVal, Object rVal) throws FSException {
     if (lVal instanceof Integer && rVal instanceof Integer) {
       return !lVal.equals(rVal) ? 1 : 0;
@@ -850,6 +848,7 @@ class Parser {
     return null;
   }
 
+  // Parse "if" statement
   private void parseIf () throws FSException {
     Integer val;
     boolean then = false;
@@ -880,7 +879,7 @@ class Parser {
     if (!then) {
       if (val != 0) {
         getNextToken();
-        while (tok.ttype != TT_EIF &&
+        while (tok.ttype != TT_ENDIF &&
                tok.ttype != TT_ELSE &&
                tok.ttype != TT_EOF &&
                tok.ttype != TT_ELSIF) {
@@ -898,7 +897,7 @@ class Parser {
               depth++;
             if (tok.ttype == TT_EOF)
               parseError("can't find endif");
-            if (tok.ttype == TT_EIF)
+            if (tok.ttype == TT_ENDIF)
               depth--;
             // A then could indicate a one line
             // if - then construct, then we don't increment
@@ -926,7 +925,7 @@ class Parser {
           if (tok.ttype == TT_EOF) {
             parseError("can't find endif");
           }
-          if ((tok.ttype == TT_EIF)) {
+          if ((tok.ttype == TT_ENDIF)) {
             depth--;
           }
           if ((tok.ttype == TT_ELSE || tok.ttype == TT_ELSIF) && depth == 1) {
@@ -946,7 +945,7 @@ class Parser {
           getNextToken();
           getNextToken();
           // run else clause
-          while (tok.ttype != TT_EIF) {
+          while (tok.ttype != TT_ENDIF) {
             parseStmt();
             getNextToken();
           }
@@ -960,14 +959,14 @@ class Parser {
     }
   }
 
-  // parses the while statement
+  // Parse While statements
   private void parseWhile () throws FSException {
     int startLine = code.getCurLine();
     getNextToken();
     Integer val = (Integer) parseExpr();
     getNextToken();
     while (val != 0) {
-      while ((tok.ttype != TT_EWHILE) && (tok.ttype != TT_EOF)) {
+      while ((tok.ttype != TT_ENDWHILE) && (tok.ttype != TT_EOF)) {
         parseStmt();
         getNextToken();
       }
@@ -985,7 +984,7 @@ class Parser {
       if (tok.ttype == TT_WHILE) {
         depth++;
       }
-      if (tok.ttype == TT_EWHILE) {
+      if (tok.ttype == TT_ENDWHILE) {
         depth--;
       }
       if (tok.ttype == TT_EOF) {
@@ -996,7 +995,7 @@ class Parser {
 
   }
 
-
+  // Parse Variable definition
   private void parseVarDef () throws FSException {
     Token type = tok.ttype;
     if (tok.ttype != TT_DEFINT && tok.ttype != TT_DEFSTRING && tok.ttype != TT_DEFDOUBLE) {
@@ -1035,10 +1034,10 @@ class Parser {
     // Set up our error block
     error[0] = s;
     error[1] = (new Integer(code.getCurLine())).toString();
-    error[2] = code.getLine();
+    error[2] = code.getCurrentLine();
     error[3] = tstr;
     error[4] = vars.toString();
-    if (gVars != null) error[5] = gVars.toString();
+    error[5] = gVars.toString();
     // Build the display string
     int lineNum = code.getCurLine();
     StringBuilder err = new StringBuilder(s);
@@ -1062,25 +1061,27 @@ class Parser {
     err.append(code.getLine(lineNum + 2));
     err.append("\n\t current token: ");
     err.append(tstr);
-    err.append("\n\t Variable dump: ");
-    err.append(vars);
-    if (gVars != null) {
+    if (vars.size() > 0) {
+      err.append("\n\t Locals: ");
+      err.append(vars);
+    }
+    if (gVars.size() > 0) {
       err.append("\n\t Globals: ");
       err.append(gVars);
     }
     throw new FSException(err.toString());
   }
 
-  // return the error block
+  // Get the error block
   String[] getError () {
     return error;
   }
 
-  // misc token access routines
+  // Misc token access routines
   private void getNextToken () {
     if ((tok.ttype == TT_EOL) && (code.getCurLine() < maxLine)) {
       code.setCurLine(code.getCurLine() + 1);
-      tok.setString(code.getLine());
+      tok.setString(code.getCurrentLine());
       tok.nextToken();
     } else if (tok.ttype == TT_EOL) {
       tok.ttype = TT_EOF; // the only place this gets set
@@ -1090,12 +1091,11 @@ class Parser {
   }
 
   private void resetTokens () {
-    tok.setString(code.getLine());
+    tok.setString(code.getCurrentLine());
     tok.nextToken();
   }
 
-
-  // variable access routines
+  // Add new variable and value to "vars" Map
   private void addVar (String name, Object value) throws FSException {
     if (vars.containsKey(name)) {
       parseError("Already defined in this scope: " + name);
@@ -1103,21 +1103,16 @@ class Parser {
     vars.put(name, value);
   }
 
-
+  // Get value of variable in "vars" Map
   Object getVar (String name) {
     if (vars.containsKey(name)) {
       return vars.get(name);
     } else {
-      if (gVars != null) {
-        if (gVars.containsKey(name)) {
-          return gVars.get(name);
-        }
-      }
+      return gVars.get(name);
     }
-    return null; // shouldn't get here
   }
 
-
+  // Set value of vaiable in "vars" Map, or "gVars" Map
   void setVar (String name, Object val) throws FSException {
     if (val == null) parseError("set variable " + name + " with null value");
     if (vars.containsKey(name)) {
@@ -1126,7 +1121,6 @@ class Parser {
       if (val.getClass() != obj.getClass()) {
         parseError("Incompatible types");
       }
-      vars.remove(name);
       vars.put(name, val);
     } else if (gVars.containsKey(name)) {
       Object obj = gVars.get(name);
@@ -1134,17 +1128,13 @@ class Parser {
       if (val.getClass() != obj.getClass()) {
         parseError("Incompatible types");
       }
-      gVars.remove(name);
       gVars.put(name, val);
     }
   }
 
+  // Returns true if "vars" Map or "gVars" Map contains variable "name"
   private boolean hasVar (String name) {
-    if (gVars == null) {
-      return vars.containsKey(name);
-    } else {
-      return vars.containsKey(name) || gVars.containsKey(name);
-    }
+    return vars.containsKey(name) || gVars.containsKey(name);
   }
 
   // Gets the 'return' value from the parser

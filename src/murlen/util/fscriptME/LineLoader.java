@@ -27,7 +27,7 @@ import java.util.List;
  * @version 0.5
  * <p>
  * * 20.08.2001
- * - getLine added
+ * - getCurrentLine added
  * - setCurLine test was wrong, allowed setting line one too far
  *
  * 20:07:2012
@@ -112,7 +112,7 @@ final class LineLoader {
   /**
    * Returns the text of the current line
    */
-  final String getLine () {
+  final String getCurrentLine () {
     return lines.get(curLine);
   }
 

@@ -5,6 +5,7 @@
 import murlen.util.fscriptME.*;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public class FSTest {
@@ -142,16 +143,20 @@ public class FSTest {
     }
   }
 
+  private static String getFile (File file) throws IOException {
+    FileInputStream fis = new FileInputStream(file);
+    byte[] data = new byte[fis.available()];
+    //noinspection ResultOfMethodCallIgnored
+    fis.read(data);
+    fis.close();
+    return new String(data, StandardCharsets.UTF_8);
+  }
+
+
   public static void main (String[] args) throws FSException, IOException {
-    // FscriptME has no load method, so we have to load individual lines
-    BasicIO fs = new BasicIO();
-    String s;
-    BufferedReader f = new BufferedReader(new FileReader("regtest.script"));
-    while ((s = f.readLine()) != null) {
-      fs.addLines(s);
-    }
-    f.close();
-    Object o = fs.runCode();
-    System.out.println("Code returned: " + o);
+    BasicIO runner = new BasicIO();
+    runner.addLines(getFile(new File("regtest.script")));
+    Object ret = runner.runCode();
+    System.out.println("Code returned: " + ret);
   }
 }

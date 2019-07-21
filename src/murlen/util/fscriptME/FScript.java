@@ -40,8 +40,7 @@ public class FScript {
    */
   public FScript () {
     parser = new Parser(this);
-    code = new LineLoader();
-    parser.setCode(code);
+    parser.setCode(code = new LineLoader());
   }
 
   public void addLines (String s) {
@@ -55,7 +54,6 @@ public class FScript {
    * FScript's supported type objects, Integer,String)
    */
   public Object runCode () throws FSException {
-    //reset the internal variable state
     try {
       parser.reset();
       return parser.parse(0, code.lineCount() - 1);
@@ -66,7 +64,7 @@ public class FScript {
   }
 
   /**
-   * Resets the internal code store
+   * Reset the internal code store
    */
   public void reset () {
     code.reset();
