@@ -99,13 +99,12 @@ class LexAnn {
     TT_EOF,         // never set by this class
     TT_EOL,
   }
-
+  // Instance members
   Token           ttype;            // contains the current token type
   Object          value;            // contains the current  value
   private boolean pBack;
-  private char[]  cBuf;
-  private char[]  line;
-  private int     cc;
+  private String  line;
+  private char    cc;
   private int     pos;
 
   /**
@@ -119,7 +118,6 @@ class LexAnn {
    * Convinience constructor which sets line as well
    */
   LexAnn (String firstLine) {
-    cBuf = new char[1024];
     setString(firstLine);
   }
 
@@ -129,7 +127,7 @@ class LexAnn {
    * @param str - the string to use
    */
   void setString (String str) {
-    line = str.toCharArray();
+    line = str;
     pos = 0;
     cc = 0;
   }
@@ -137,11 +135,11 @@ class LexAnn {
   /**
    * return the next char in the buffer
    */
-  private int getChar () {
-    if (pos < line.length) {
-      return line[pos++];
+  private char getChar () {
+    if (pos < line.length()) {
+      return line.charAt(pos++);
     } else {
-      return -1;
+      return 0;
     }
   }
 
@@ -149,17 +147,15 @@ class LexAnn {
    * return the character at a current line pos
    * without affecting internal counters
    */
-  private int peekChar () {
-    if (pos >= line.length) {
-      return -1;
+  private char peekChar () {
+    if (pos >= line.length()) {
+      return 0;
     } else {
-      return line[pos];
+      return line.charAt(pos);
     }
   }
 
-  /**
-   * Read the next token
-   */
+  // Read the next token
   void nextToken () {
     if (!pBack) {
       nextT();
@@ -168,81 +164,75 @@ class LexAnn {
     }
   }
 
-  /**
-   * Causes next call to nextToken to return same value
-   */
+   // Cause next call to nextToken to return same value
   void pushBack () {
     pBack = true;
   }
 
-  // Internal next token function
+  // Internal next token function (recursive)
   private void nextT () {
-    int cPos = 0;
+    StringBuilder buf = new StringBuilder();
     if (cc == 0)
       cc = getChar();
     value = null;
     while (cc == ' ' || cc == '\t' || cc == '\n' || cc == '\r') {
       cc = getChar();
     }
-    if (cc < 0) {
+    if (cc == 0) {
       ttype = Token.TT_EOL;
     } else if (cc == '#') {
       // Advance to next line
       do {
         cc = getChar();
-      } while (cc >= 0);
+      } while (cc > 0);
       nextT();
     } else if (cc == '"') {
       // Quoted Strings
       cc = getChar();
-      while ((cc >= 0) && (cc != '"')) {
+      while ((cc > 0) && (cc != '"')) {
         if (cc == '\\') {
+          // Process esc code, such as "\n"
           switch (peekChar()) {
-            case 'n': {
-              cBuf[cPos++] = '\n';
+            case 'n':
+              buf.append('\n');
               getChar();
               break;
-            }
-            case 't': {
-              cBuf[cPos++] = 't';
+            case 't':
+              buf.append('t');
               getChar();
               break;
-            }
-            case 'r': {
-              cBuf[cPos++] = '\r';
+            case 'r':
+              buf.append('\r');
               getChar();
               break;
-            }
-            case '\"': {
-              cBuf[cPos++] = '"';
+            case '\"':
+              buf.append('"');
               getChar();
               break;
-            }
-            case '\\': {
-              cBuf[cPos++] = '\\';
+            case '\\':
+              buf.append('\\');
               getChar();
               break;
-            }
           }
         } else {
-          cBuf[cPos++] = (char) cc;
+          buf.append(cc);
         }
         cc = getChar();
       }
-      value = new String(cBuf, 0, cPos);
+      value = buf.toString();
       cc = getChar();
       ttype = Token.TT_STRING;
-    } else if (ALLOW_WORD_START.indexOf(cc) >= 0) {
+    } else if (ALLOW_WORD_START.indexOf(cc) > 0) {
       // Words
-      while (ALLOW_WORD.indexOf(cc) >= 0) {
-        cBuf[cPos++] = (char) cc;
+      while (ALLOW_WORD.indexOf(cc) > 0) {
+        buf.append(cc);
         cc = getChar();
       }
       // Skip trailing whitespace, if any
       while (cc == ' ' || cc == '\t') {
         cc = getChar();
       }
-      value = new String(cBuf, 0, cPos);
+      value = buf.toString();
       if (value.equals("if")) {
         ttype = Token.TT_IF;
       } else if (value.equals("then")) {
@@ -279,10 +269,10 @@ class LexAnn {
     } else if (cc >= '0' && cc <= '9') {
       // Numbers
       while (cc >= '0' && cc <= '9') {
-        cBuf[cPos++] = (char) cc;
+        buf.append(cc);
         cc = getChar();
       }
-      String str = new String(cBuf, 0, cPos);
+      String str = buf.toString();
       ttype = Token.TT_INTEGER;
       value = Integer.parseInt(str);
     } else {

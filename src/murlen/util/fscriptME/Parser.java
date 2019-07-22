@@ -185,33 +185,26 @@ class Parser {
       case TT_DEFFUNC:
       case TT_EXIT:
       case TT_ENDDEFFUNC:
-      case TT_RETURN: {
+      case TT_RETURN:
         parseKeyWord();
         break;
-      }
-      case TT_FUNC: {
+      case TT_FUNC:
         parseFunc();
         break;
-      }
-      case TT_ARRAY: {
+      case TT_ARRAY:
         parseArrayAssign();
         break;
-      }
-      case TT_WORD: {
+      case TT_WORD:
         parseAssign();
         break;
-      }
-      case TT_EOL: {
+      case TT_EOL:
         tok.nextToken();
         break;
-      }
-      case TT_EOF: {
+      case TT_EOF:
         // all done
         break;
-      }
-      default: {
+      default:
         parseError("Expected identifier");
-      }
     }
   }
 
@@ -255,33 +248,26 @@ class Parser {
     switch (tok.ttype) {
       case TT_DEFINT:
       case TT_DEFSTRING:
-      case TT_DEFDOUBLE: {
+      case TT_DEFDOUBLE:
         parseVarDef();
         break;
-      }
-      case TT_IF: {
+      case TT_IF:
         parseIf();
         break;
-      }
-      case TT_WHILE: {
+      case TT_WHILE:
         parseWhile();
         break;
-      }
-      case TT_RETURN: {
+      case TT_RETURN:
         parseReturn();
         break;
-      }
-      case TT_DEFFUNC: {
+      case TT_DEFFUNC:
         parseFunctionDef();
         break;
-      }
-      case TT_EXIT: {
+      case TT_EXIT:
         parseExit();
-      }
-      default: {
-        // We never get here
+      default:
+        // We should never get here
         parseError("Not a keyword");
-      }
     }
   }
 
@@ -456,32 +442,29 @@ class Parser {
               // numbers - just get them
               case TT_INTEGER:
                 // strings - just get again
-              case TT_STRING: {
+              case TT_STRING:
                 val = tok.value;
                 break;
-              }
               // functions - evaluate them
-              case TT_FUNC: {
-                String name = (String) tok.value;
+              case TT_FUNC:
+                String funcName = (String) tok.value;
                 getNextToken();
-                val = parseCallFunc(name);
+                val = parseCallFunc(funcName);
                 break;
-              }
-              // arrays - evaluate them
-              case TT_ARRAY: {
-                String name = (String) tok.value;
+              case TT_ARRAY:
+                // arrays - evaluate them
+                String aryName = (String) tok.value;
                 getNextToken();         // should be a '['
                 getNextToken();         // should be the index
                 Object index = parseExpr();
                 try {
-                  val = host.getVar(name, index);
+                  val = host.getVar(aryName, index);
                 } catch (Exception e) {
                   parseError(e.getMessage());
                 }
                 break;
-              }
-              // variables - resolve them
-              case TT_WORD: {
+              case TT_WORD:
+                // variables - resolve them
                 if (hasVar((String) tok.value)) {
                   val = getVar((String) tok.value);
                 } else {
@@ -492,7 +475,6 @@ class Parser {
                   }
                 }
                 break;
-              }
             }
             // unary not
             if (not) {
@@ -660,46 +642,33 @@ class Parser {
     Object lVal = evalETree(node.left);
     Object rVal = evalETree(node.right);
     switch ((Token) node.value) {
-      // call the various eval functions
-      case TT_PLUS: {
+      // Call the various eval functions
+      case TT_PLUS:
         return evalPlus(lVal, rVal);
-      }
-      case TT_MINUS: {
+      case TT_MINUS:
         return evalMinus(lVal, rVal);
-      }
-      case TT_MULT: {
+      case TT_MULT:
         return evalMult(lVal, rVal);
-      }
-      case TT_DIV: {
+      case TT_DIV:
         return evalDiv(lVal, rVal);
-      }
-      case TT_LEQ: {
+      case TT_LEQ:
         return evalEq(lVal, rVal);
-      }
-      case TT_LNEQ: {
+      case TT_LNEQ:
         return evalNEq(lVal, rVal);
-      }
-      case TT_LLS: {
+      case TT_LLS:
         return evalLs(lVal, rVal);
-      }
-      case TT_LLSE: {
+      case TT_LLSE:
         return evalLse(lVal, rVal);
-      }
-      case TT_LGR: {
+      case TT_LGR:
         return evalGr(lVal, rVal);
-      }
-      case TT_LGRE: {
+      case TT_LGRE:
         return evalGre(lVal, rVal);
-      }
-      case TT_MOD: {
+      case TT_MOD:
         return evalMod(lVal, rVal);
-      }
-      case TT_LAND: {
+      case TT_LAND:
         return evalAnd(lVal, rVal);
-      }
-      case TT_LOR: {
+      case TT_LOR:
         return evalOr(lVal, rVal);
-      }
     }
     return null;
   }
@@ -709,7 +678,10 @@ class Parser {
     if (lVal instanceof Integer && rVal instanceof Integer) {
       return (Integer) lVal + (Integer) rVal;
     } else if (lVal instanceof String || rVal instanceof String) {
-      return lVal.toString() + rVal.toString();
+      // Little bit of bulletproofing
+      String lv = lVal != null ? lVal.toString() : "null";
+      String rv = rVal != null ? rVal.toString() : "null";
+      return lv + rv;
     } else {
       parseError("Type Mismatch for operator +");
     }
