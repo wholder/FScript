@@ -1,6 +1,9 @@
-//  This class provides basic abillity to run scripts in order to test
-//  fscriptME.  Typically used to run regtest.script and any other
-//  test scripts duting development
+
+/*
+ * FScriptRunner implements a simple GUI for editing and running FScript code
+ *  Author: Wayne Holder, 2019
+ *  License: MIT (https://opensource.org/licenses/MIT)
+ */
 
 import murlen.util.fscriptME.FSException;
 import murlen.util.fscriptME.FScript;
@@ -13,10 +16,6 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.prefs.Preferences;
-
-/**
- *  FScriptRunner implements a simple GUI for editing and running FScript code
- */
 
 public class FScriptRunner extends JFrame {
   private transient Preferences prefs = Preferences.userRoot().node(this.getClass().getName());
