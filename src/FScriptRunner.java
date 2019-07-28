@@ -25,6 +25,9 @@ public class FScriptRunner extends JFrame {
   /**
    * BasicIO implements the external functions available to the FScript Interpreter
    * The FSCript test program FSTest.java shows how to implement additional external functions
+   *
+   *  Author: Wayne Holder, 2019
+   *  License: MIT (https://opensource.org/licenses/MIT)
    */
   class BasicIO extends FScript {
 

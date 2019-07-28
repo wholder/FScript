@@ -517,10 +517,8 @@ class Parser {
           break;
         }
         /*
-         * Operators - have to be more carefull with these.
-         * We build an expression tree - inserting the nodes at the right
-         * points to get a reasonable approximation to correct operator
-         *  precedence
+         * Operators - have to be more carefull with these.  We build an expression tree - inserting the
+         * nodes at the right points to get a reasonable approximation to correct operator precedence
          */
         case TT_LEQ:
         case TT_LNEQ:
